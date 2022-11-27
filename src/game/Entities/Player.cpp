@@ -12200,8 +12200,8 @@ void Player::PrepareGossipMenu(WorldObject* pSource, uint32 menuId, bool forceQu
                     break;
                 case GOSSIP_OPTION_VENDOR:
                 {
-                    VendorItemData const* vItems = pCreature->GetVendorItems();
-                    VendorItemData const* tItems = pCreature->GetVendorTemplateItems();
+                    VendorItemData const* vItems = itr->second.action_menu_id ? sObjectMgr.GetNpcVendorItemList(itr->second.action_menu_id) : pCreature->GetVendorItems();
+                    VendorItemData const* tItems = itr->second.action_menu_id ? sObjectMgr.GetNpcVendorTemplateItemList(itr->second.action_menu_id) : pCreature->GetVendorTemplateItems();
                     if ((!vItems || vItems->Empty()) && (!tItems || tItems->Empty()))
                     {
                         sLog.outErrorDb("Creature %u (Entry: %u) have UNIT_NPC_FLAG_VENDOR but have empty trading item list.", pCreature->GetGUIDLow(), pCreature->GetEntry());
@@ -12483,7 +12483,7 @@ void Player::OnGossipSelect(WorldObject* pSource, uint32 gossipListId, uint32 me
             break;
         case GOSSIP_OPTION_VENDOR:
         case GOSSIP_OPTION_ARMORER:
-            GetSession()->SendListInventory(guid);
+            GetSession()->SendListInventory(guid, menuData.m_gAction_menu);
             break;
         case GOSSIP_OPTION_STABLEPET:
             GetSession()->SendStablePet(guid);
@@ -18682,20 +18682,28 @@ bool Player::BuyItemFromVendor(ObjectGuid vendorGuid, uint32 item, uint8 count, 
         return false;
     }
 
-    Creature* pCreature = GetNPCIfCanInteractWith(vendorGuid, UNIT_NPC_FLAG_VENDOR);
-    if (!pCreature)
+    Creature* pCreature = nullptr;
+    if (vendorGuid != GetObjectGuid())
     {
-        DEBUG_LOG("WORLD: BuyItemFromVendor - %s not found or you can't interact with him.", vendorGuid.GetString().c_str());
-        SendBuyError(BUY_ERR_DISTANCE_TOO_FAR, nullptr, item, 0);
-        return false;
+        pCreature = GetNPCIfCanInteractWith(vendorGuid, UNIT_NPC_FLAG_VENDOR);
+        if (!pCreature)
+        {
+            DEBUG_LOG("WORLD: BuyItemFromVendor - %s not found or you can't interact with him.", vendorGuid.GetString().c_str());
+            SendBuyError(BUY_ERR_DISTANCE_TOO_FAR, nullptr, item, 0);
+            return false;
+        }
     }
 
-    VendorItemData const* vItems = pCreature->GetVendorItems();
-    VendorItemData const* tItems = pCreature->GetVendorTemplateItems();
-    if ((!vItems || vItems->Empty()) && (!tItems || tItems->Empty()))
+    VendorItemData const* vItems = pCreature ? pCreature->GetVendorItems() : sObjectMgr.GetNpcVendorItemList(GetSession()->GetCurrentVendor());
+    VendorItemData const* tItems = pCreature ? pCreature->GetVendorTemplateItems() : sObjectMgr.GetNpcVendorTemplateItemList(GetSession()->GetCurrentVendor());
+
+    if (pCreature)
     {
-        SendBuyError(BUY_ERR_CANT_FIND_ITEM, pCreature, item, 0);
-        return false;
+        if ((!vItems || vItems->Empty()) && (!tItems || tItems->Empty()))
+        {
+            SendBuyError(BUY_ERR_CANT_FIND_ITEM, pCreature, item, 0);
+            return false;
+        }
     }
 
     uint32 vCount = vItems ? vItems->GetItemCount() : 0;
@@ -18721,12 +18729,15 @@ bool Player::BuyItemFromVendor(ObjectGuid vendorGuid, uint32 item, uint8 count, 
     uint32 totalCount = pProto->BuyCount * count;
 
     // check current item amount if it limited
-    if (crItem->maxcount != 0)
+    if (pCreature)
     {
-        if (pCreature->GetVendorItemCurrentCount(crItem) < totalCount)
+        if (crItem->maxcount != 0)
         {
-            SendBuyError(BUY_ERR_ITEM_ALREADY_SOLD, pCreature, item, 0);
-            return false;
+            if (pCreature->GetVendorItemCurrentCount(crItem) < totalCount)
+            {
+                SendBuyError(BUY_ERR_ITEM_ALREADY_SOLD, pCreature, item, 0);
+                return false;
+            }
         }
     }
 
@@ -18778,16 +18789,19 @@ bool Player::BuyItemFromVendor(ObjectGuid vendorGuid, uint32 item, uint8 count, 
         }
     }
 
-    if (crItem->conditionId && !IsGameMaster() && !sObjectMgr.IsConditionSatisfied(crItem->conditionId, this, pCreature->GetMap(), pCreature, CONDITION_FROM_VENDOR))
+    if (pCreature)
     {
-        SendBuyError(BUY_ERR_CANT_FIND_ITEM, pCreature, item, 0);
-        return false;
+        if (crItem->conditionId && !IsGameMaster() && !sObjectMgr.IsConditionSatisfied(crItem->conditionId, this, pCreature->GetMap(), pCreature, CONDITION_FROM_VENDOR))
+        {
+            SendBuyError(BUY_ERR_CANT_FIND_ITEM, pCreature, item, 0);
+            return false;
+        }
     }
 
     uint32 price = pProto->BuyPrice * count;
 
     // reputation discount
-    price = uint32(floor(price * GetReputationPriceDiscount(pCreature)));
+    price = pCreature ? uint32(floor(price * GetReputationPriceDiscount(pCreature))) : price;
 
     if (GetMoney() < price)
     {
@@ -18849,10 +18863,10 @@ bool Player::BuyItemFromVendor(ObjectGuid vendorGuid, uint32 item, uint8 count, 
     if (!pItem)
         return false;
 
-    uint32 new_count = pCreature->UpdateVendorItemCurrentCount(crItem, totalCount);
+    uint32 new_count = pCreature ? pCreature->UpdateVendorItemCurrentCount(crItem, pProto->BuyCount * count) : 0xFFFFFFFF;
 
     WorldPacket data(SMSG_BUY_ITEM, 8 + 4 + 4 + 4);
-    data << pCreature->GetObjectGuid();
+    data << uint64(pCreature ? pCreature->GetObjectGuid() : GetObjectGuid());
     data << uint32(vendorslot + 1);                 // numbered from 1 at client
     data << uint32(crItem->maxcount > 0 ? new_count : 0xFFFFFFFF);
     data << uint32(count);

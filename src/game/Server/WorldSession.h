@@ -333,7 +333,7 @@ class WorldSession
 
         void SendTrainerList(ObjectGuid guid) const;
 
-        void SendListInventory(ObjectGuid guid) const;
+        void SendListInventory(ObjectGuid guid, uint32 vendorEntry = 0) const;
         bool CheckBanker(ObjectGuid guid) const;
         void SendShowBank(ObjectGuid guid) const;
         bool CheckMailBox(ObjectGuid guid) const;
@@ -453,6 +453,10 @@ class WorldSession
         // Recruit-A-Friend Handling
         uint32 GetRecruitingFriendId() const { return m_recruitingFriendId; }
         bool IsARecruiter() const { return m_isRecruiter; }
+
+        // Multivendor
+        uint32 GetCurrentVendor() const { return m_current_vendor_entry; }
+        void SetCurrentVendor(uint32 entry) { m_current_vendor_entry = entry; }
 
         // Time Synchronisation
         void ResetTimeSync();
@@ -984,6 +988,9 @@ class WorldSession
         // Recruit-A-Friend
         uint32 m_recruitingFriendId;
         bool m_isRecruiter;
+
+        // Multivendor
+        uint32 m_current_vendor_entry = 0;
 
         // Thread safety mechanisms
         std::mutex m_recvQueueLock;

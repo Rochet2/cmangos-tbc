@@ -9755,6 +9755,7 @@ bool ObjectMgr::IsVendorItemValid(bool isTemplate, char const* tableName, uint32
 
     if (!isTemplate)
     {
+        /*
         cInfo = GetCreatureTemplate(vendor_entry);
         if (!cInfo)
         {
@@ -9779,6 +9780,7 @@ bool ObjectMgr::IsVendorItemValid(bool isTemplate, char const* tableName, uint32
             }
             return false;
         }
+        */
     }
 
     if (!GetItemPrototype(item_id))
