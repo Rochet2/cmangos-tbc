@@ -101,8 +101,10 @@ struct Script
     bool (*pGossipHelloGO)(Player*, GameObject*);
     bool (*pGossipSelect)(Player*, Creature*, uint32, uint32);
     bool (*pGossipSelectGO)(Player*, GameObject*, uint32, uint32);
+    bool (*pGossipSelectItem)(Player*, Item*, uint32, uint32) = nullptr;
     bool (*pGossipSelectWithCode)(Player*, Creature*, uint32, uint32, const char*);
     bool (*pGossipSelectGOWithCode)(Player*, GameObject*, uint32, uint32, const char*);
+    bool (*pGossipSelectItemWithCode)(Player*, Item*, uint32, uint32, const char*) = nullptr;
     uint32(*pDialogStatusNPC)(const Player*, const Creature*);
     uint32(*pDialogStatusGO)(const Player*, const GameObject*);
     bool (*pQuestAcceptNPC)(Player*, Creature*, Quest const*);
@@ -145,6 +147,7 @@ class ScriptDevAIMgr
         bool OnGossipHello(Player* pPlayer, GameObject* pGo);
         bool OnGossipSelect(Player* pPlayer, Creature* pCreature, uint32 uiSender, uint32 uiAction, const char* code);
         bool OnGossipSelect(Player* pPlayer, GameObject* pGo, uint32 uiSender, uint32 uiAction, const char* code);
+        bool OnGossipSelect(Player* pPlayer, Item* pItem, uint32 uiSender, uint32 uiAction, const char* code);
         bool OnQuestAccept(Player* pPlayer, Creature* pCreature, Quest const* pQuest);
         bool OnQuestAccept(Player* pPlayer, GameObject* pGo, Quest const* pQuest);
         bool OnQuestAccept(Player* pPlayer, Item* pItem, Quest const* pQuest);
